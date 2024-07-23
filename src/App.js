@@ -1,6 +1,12 @@
+import React from 'react'
+import ArticleSummarizer from "./ArticleSummarizer";
+
 function App() {
   return (
-    <h1>Hello world</h1>
+    <div>
+      <h1>Article Summarizer</h1>
+      <ArticleSummarizer />
+    </div>
   );
 }
 
