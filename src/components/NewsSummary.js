@@ -3,17 +3,30 @@ import React, { useState } from "react";
 const NewsSummary = () => {
   const [url, setUrl] = useState("");
   const [summary, setSummary] = useState("");
+  const [error, setError] = useState("");
 
   const summarize = async () => {
-    const response = await fetch("YOUR_API_ENDPOINT", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url }),
-    });
-    const result = await response.json();
-    setSummary(result.summary);
+    setError("");
+    try {
+      const response = await fetch("http://localhost:5000/summarize", {
+        // API endpoint 로 바꾸셈
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setSummary(result.summary);
+    } catch (error) {
+      setError("Failed to fetch summary. Please try again later.");
+      console.error("Error fetching summary:", error);
+    }
   };
 
   return (
@@ -26,7 +39,16 @@ const NewsSummary = () => {
         placeholder="Enter news URL"
       />
       <button onClick={summarize}>Summarize</button>
-      <div id="summary">{summary && <p>{summary}</p>}</div>
+      {summary && (
+        <div id="summary">
+          <p>{summary}</p>
+        </div>
+      )}
+      {error && (
+        <div className="error">
+          <p>{error}</p>
+        </div>
+      )}
     </div>
   );
 };
