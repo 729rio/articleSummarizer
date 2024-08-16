@@ -9,7 +9,6 @@ const NewsSummary = () => {
     setError("");
     try {
       const response = await fetch("http://localhost:5000/summarize", {
-        // API endpoint 로 바꾸셈
         method: "POST",
         headers: {
           "Content-Type": "application/json",
