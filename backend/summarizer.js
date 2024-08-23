@@ -1,14 +1,14 @@
 const express = require("express");
-const cors = require("cors"); // Import cors
+const cors = require("cors");
 const fetch = require("node-fetch");
 const OpenAI = require("openai");
-const cheerio = require("cheerio"); // Import cheerio
+const cheerio = require("cheerio");
 require("dotenv").config();
 
 const app = express();
 const port = 5001;
 
-app.use(cors()); // Enable CORS
+app.use(cors());
 app.use(express.json());
 
 const openai = new OpenAI({
@@ -23,7 +23,7 @@ app.post("/summarize", async (req, res) => {
       throw new Error("No URL provided");
     }
 
-    console.log("Received URL", url);
+    console.log("Received URL:", url);
 
     // Fetch the article content from the URL
     const response = await fetch(url);
@@ -37,37 +37,41 @@ app.post("/summarize", async (req, res) => {
     // Load HTML and try to extract the main content using a heuristic approach
     const $ = cheerio.load(html);
 
-    // Attempt to find the main article text
-    const possibleSelectors = [
-      "article", // most articles use this tag
-      'div[class*="content"]',
-      'section[class*="content"]',
-      'div[class*="article"]',
-      'section[class*="article"]',
-      'div[class*="story"]',
-      'section[class*="story"]',
-      'div[class*="post"]',
-      'section[class*="post"]',
-      'div[class*="article-texts"]',
-      'div[class*="article-body"]',
-      'div[class*="story-texts"]',
-      'div[class*="story-body"]',
-    ];
+    // Function to extract text from tags and class names
+    const extractText = () => {
+      let extractedText = "";
 
-    let articleText = "";
+      // Iterate over all tags
+      $("*").each((index, element) => {
+        const tagName = $(element).prop("tagName").toLowerCase();
+        const className = $(element).attr("class") || "";
 
-    // Iterate through the possible selectors until we find a good match
-    for (const selector of possibleSelectors) {
-      const text = $(selector).text();
-      if (text.length > articleText.length) {
-        // Choose the longest content
-        articleText = text;
-      }
-    }
+        // Heuristic: if the tag name or class name is related to articles, content, or stories, prioritize it
+        if (
+          tagName.includes("article") ||
+          tagName.includes("section") ||
+          tagName.includes("div") ||
+          className.includes("content") ||
+          className.includes("story") ||
+          className.includes("text") ||
+          className.includes("body")
+        ) {
+          const text = $(element).text().trim();
+          if (text.length > extractedText.length) {
+            extractedText = text;
+          }
+        }
+      });
+
+      return extractedText;
+    };
+
+    // Extract the text
+    let articleText = extractText();
 
     // Further clean up the text
     const cleanedText = articleText
-      .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+      .replace(/\s+/g, " ")
       .replace(
         /(Read Next|Sponsored|Advertisement|Contact|Share this|Comments|Related Articles|Back to top).*/gi,
         ""
@@ -80,19 +84,19 @@ app.post("/summarize", async (req, res) => {
       throw new Error("Failed to extract meaningful content from the article");
     }
 
-    // Use OpenAI to summarize the cleaned text with a more specific prompt
+    // Refine the prompt to produce a more specific summary
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           {
             role: "user",
-            content: `Provide a detailed summary of the following article, including specific details such as the identities of the people involved, the nature of the incident, and the context surrounding the event: ${cleanedText}`,
+            content: `Summarize the following article in detail, including key events, people involved, and the implications: ${cleanedText}`,
           },
         ],
       });
 
-      const summary = completion.choices[0].message.content;
+      const summary = completion.choices[0].message.content.trim();
       res.json({ summary });
     } catch (error) {
       console.error("Error during OpenAI API call:", error.message);
