@@ -1,72 +1,8 @@
-/*
-
-require("dotenv").config();
 const express = require("express");
-const axios = require("axios");
-const { OpenAI } = require("openai");
-const cors = require("cors");
-
-const app = express();
-const port = 5001; // Ensure this matches what your frontend expects
-
-app.use(express.json());
-
-// Setup CORS to allow requests from your React frontend
-app.use(
-  cors({
-    origin: "http://localhost:3000", // React frontend
-  })
-);
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Ensure this is correct
-});
-
-app.post("/summarize", async (req, res) => {
-  const { url } = req.body;
-
-  try {
-    console.log("Received URL:", url);
-
-    // Fetch the content from the URL
-    const response = await axios.get(url);
-    const text = response.data;
-
-    console.log("Fetched text length:", text.length);
-
-    // Summarize the text using OpenAI API
-    const summaryResponse = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "user",
-          content: `Summarize the following text: ${text}`,
-        },
-      ],
-      max_tokens: 100,
-    });
-
-    const summary = summaryResponse.choices[0].message.content;
-    console.log("Summary generated:", summary);
-    res.json({ summary });
-  } catch (error) {
-    console.error("Error:", error.message);
-    console.error("Full error details:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to fetch summary. Please try again later." });
-  }
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
-
-*/
-const express = require("express");
+const cors = require("cors"); // Import cors
 const fetch = require("node-fetch");
 const OpenAI = require("openai");
-const cors = require("cors"); // Import cors
+const cheerio = require("cheerio"); // Import cheerio
 require("dotenv").config();
 
 const app = express();
@@ -80,31 +16,91 @@ const openai = new OpenAI({
 });
 
 app.post("/summarize", async (req, res) => {
-  const { url } = req.body;
-
-  if (!url) {
-    return res.status(400).send("URL is required");
-  }
-
   try {
+    const { url } = req.body;
+
+    if (!url) {
+      throw new Error("No URL provided");
+    }
+
+    console.log("Received URL", url);
+
     // Fetch the article content from the URL
     const response = await fetch(url);
-    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch article content: ${response.statusText}`
+      );
+    }
+    const html = await response.text();
 
-    // Use OpenAI to summarize the text
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "user", content: `Summarize the following text: ${text}` },
-      ],
-    });
+    // Load HTML and try to extract the main content using a heuristic approach
+    const $ = cheerio.load(html);
 
-    const summary = completion.choices[0].message.content;
+    // Attempt to find the main article text
+    const possibleSelectors = [
+      "article", // most articles use this tag
+      'div[class*="content"]',
+      'section[class*="content"]',
+      'div[class*="article"]',
+      'section[class*="article"]',
+      'div[class*="story"]',
+      'section[class*="story"]',
+      'div[class*="post"]',
+      'section[class*="post"]',
+      'div[class*="article-texts"]',
+      'div[class*="article-body"]',
+      'div[class*="story-texts"]',
+      'div[class*="story-body"]',
+    ];
 
-    res.json({ summary });
+    let articleText = "";
+
+    // Iterate through the possible selectors until we find a good match
+    for (const selector of possibleSelectors) {
+      const text = $(selector).text();
+      if (text.length > articleText.length) {
+        // Choose the longest content
+        articleText = text;
+      }
+    }
+
+    // Further clean up the text
+    const cleanedText = articleText
+      .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+      .replace(
+        /(Read Next|Sponsored|Advertisement|Contact|Share this|Comments|Related Articles|Back to top).*/gi,
+        ""
+      )
+      .trim();
+
+    console.log("Extracted and cleaned article text:", cleanedText);
+
+    if (!cleanedText) {
+      throw new Error("Failed to extract meaningful content from the article");
+    }
+
+    // Use OpenAI to summarize the cleaned text with a more specific prompt
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: `Provide a detailed summary of the following article, including specific details such as the identities of the people involved, the nature of the incident, and the context surrounding the event: ${cleanedText}`,
+          },
+        ],
+      });
+
+      const summary = completion.choices[0].message.content;
+      res.json({ summary });
+    } catch (error) {
+      console.error("Error during OpenAI API call:", error.message);
+      res.status(500).json({ error: "Failed to generate summary" });
+    }
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).send("Internal Server Error");
+    console.error("Error:", error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
