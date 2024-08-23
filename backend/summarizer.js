@@ -17,10 +17,14 @@ const openai = new OpenAI({
 
 app.post("/summarize", async (req, res) => {
   try {
-    const { url } = req.body;
+    const { url, summaryLength } = req.body;
 
     if (!url) {
       throw new Error("No URL provided");
+    }
+
+    if (summaryLength === "") {
+      throw new Error("Please choose your summary length!");
     }
 
     console.log("Received URL:", url);
@@ -84,6 +88,8 @@ app.post("/summarize", async (req, res) => {
       throw new Error("Failed to extract meaningful content from the article");
     }
 
+    const summaryPrompt = `Give me a ${summaryLength} sized summary of this article: ${cleanedText}`;
+
     // Refine the prompt to produce a more specific summary
     try {
       const completion = await openai.chat.completions.create({
@@ -91,7 +97,7 @@ app.post("/summarize", async (req, res) => {
         messages: [
           {
             role: "user",
-            content: `Summarize the following article in detail, including key events, people involved, and the implications: ${cleanedText}`,
+            content: summaryPrompt,
           },
         ],
       });
