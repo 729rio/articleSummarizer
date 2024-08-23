@@ -7,7 +7,6 @@ const NewsSummary = () => {
 
   const summarize = async () => {
     setError("");
-    console.log("we got to here");
     try {
       const response = await fetch("http://localhost:5001/summarize", {
         method: "POST",
@@ -16,8 +15,6 @@ const NewsSummary = () => {
         },
         body: JSON.stringify({ url }),
       });
-
-      console.log("we also got to here");
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
