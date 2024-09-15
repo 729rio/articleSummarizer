@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import "../App.css";
 
 function NewsSummary() {
   const [url, setUrl] = useState("");
@@ -6,9 +7,22 @@ function NewsSummary() {
   const [error, setError] = useState("");
   const [summaryLength, setSummaryLength] = useState("");
   const [loading, setLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
 
   const summarize = async () => {
-    setLoading(true); // Set loading state to true when starting summarization
+    setLoading(true);
     try {
       const response = await fetch("http://localhost:5001/summarize", {
         method: "POST",
@@ -30,13 +44,18 @@ function NewsSummary() {
       setSummary("");
       setError("An error occurred: " + err.message);
     } finally {
-      setLoading(false); // Reset loading state when done
+      setLoading(false);
     }
   };
 
   return (
     <div className="container">
-      <h1>News Summary</h1>
+      <button onClick={toggleDarkMode} className="dark-mode-button">
+        {darkMode ? "Light Mode" : "Dark Mode"}
+      </button>
+      <div className="header">
+        <h1>News Cruncher</h1>
+      </div>
       <div className="input-group">
         <input
           type="text"
